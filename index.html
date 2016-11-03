@@ -47,6 +47,12 @@
 		updateCanvas();
 	}
 
+	function calcDistance(p1, p2) {
+    	var dx = p2.x - p1.x;
+    	var dy = p2.y - p1.y;
+    	return Math.pow((dx*dx + dy*dy), 1/2);
+    }
+
 	// Draw data on update of sketch selection
 	function updateCanvas() {
 		var c = document.getElementById("sketch");
@@ -151,27 +157,53 @@
 					// It serves only to show the functions you may need
 					
 					var newShape = new srlib.core.data.container.Shape();
+					var group = [];
+					var threshold_dist = 7;
 
 					for (var key in current.getSubstrokes()) {
-
-						/*
-						 *
-						 *
-						 * Do something to detect shapes
-						 * 
-						 *
-						 * 
-						 */
+						var substrk = current.getSubstrokes()[key];
+						var startPoint = substrk.getPoints()[0];
+						var endPoint = substrk.getPoints()[substrk.getNumPoints() - 1];
+						if (startPoint.getX() > endPoint.getX()) {
+							var tmp = endPoint;
+							endPoint = startPoint;
+							startPoint = tmp;
+						};
+						var groupid = group.length;
+						for(var element in group) {
+							var dist1 = calcDistance(group[element].s, startPoint);
+							var dist2 = calcDistance(group[element].s, endPoint);
+							var dist3 = calcDistance(group[element].e, startPoint);
+							var dist4 = calcDistance(group[element].e, endPoint);
+							if (dist1 < threshold_dist || dist2 < threshold_dist || dist3 < threshold_dist || dist4 < threshold_dist) {
+								groupid = group[element].gid;
+								break;
+							};
+						}
+						group.push({s:startPoint, e:endPoint, gid: groupid, stroke: substrk});
+						
 						// Build new shape and add substrokes
 						// var newShape = new srlib.core.data.container.Shape();
 
 						// For this example, just assume that there is only one shape (there are more)
-						newShape.addSubElement(current.getSubstrokes()[key]);
+						// newShape.addSubElement(current.getSubstrokes()[key]);
 					}
 
 					newShape.setInterpretation("arrow"); // Whatever the shape represents
 					newShape.setConfidence(0.0); // Your recognizer's confidence, may come from how close to a threshold it is in your recognizer, or even probabilities in more sophisticated recognizers
-
+					var id;
+					while (group.length > 0) {
+						newShape = new srlib.core.data.container.Shape();
+						id = group[0].gid;
+						for (var seq = 0; seq < group.length; seq++) {
+							if (group[seq].gid == id) {
+								newShape.addSubElement(group[seq].stroke);
+								group.splice(seq, 1);
+								seq--;
+							};
+						};
+						current.addShape(newShape);
+					}
 					// Add shapes to the sketch
 					current.addShape(newShape);
 
