@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Homework 3 Starter</title>
+	<!-- An AMD-loader like RequireJS is necessary for srlib's asynchronous modules -->
+	<script src="require.js"></script>
+	<!-- Load srlib following RequireJS -->
+	<script src="srlib.js"></script>
+	<!-- JQuery provides a very nice set of tools when dealing with AJAX requests -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+	<script type="text/javascript">
+	// Begin processing once webpage loaded
+	$(document).ready(function() {
+		// Globals
+		sketches = {};
+		deserializer = new srlib.core.data.io.Deserializer();
+		serializer = new srlib.core.data.io.Serializer();
+		
+		// Metrics
+		Total = 0;
+		TP = 0;
+		FP = 0;
+		TN = 0;
+		FN = 0;
+
+		drawSubstrokes = true;
+
+		startSketch = 4000; // Rather than start with the oldest, will look at some of the more recent sketches for now
+		maxSketches = startSketch + 100; // To begin with, simply consider 200 sketches for segmentation; can change this value anytime for more testing
+
+		getSketches();
+
+	});
+
+	function updateDrawSubstrokes() {
+		drawSubstrokes = true;
+		$('#drawSubstrokes').prop('checked',true);
+		$('#drawShapes').prop('checked',false);
+		updateCanvas();
+	}
+
+	function updateDrawShapes() {
+		drawSubstrokes = false;
+		$('#drawSubstrokes').prop('checked',false);
+		$('#drawShapes').prop('checked',true);
+		updateCanvas();
+	}
+
+	// Draw data on update of sketch selection
+	function updateCanvas() {
+		var c = document.getElementById("sketch");
+		var ctx = c.getContext("2d");
+
+		// Clear canvas first
+		ctx.clearRect(0,0,c.width,c.height);
+
+		var current = sketches[$('#sketches').val()]; // Select the sketch selected from global dictionary
+
+		// Draw substrokes
+		if (drawSubstrokes) {
+			for (var key in current.getSubstrokes()) {
+				// Draw new substroke
+
+				var stroke = current.getSubstrokes()[key]; // Select the drawing area
+				var points = stroke.getPoints();
+
+				ctx.beginPath();
+				ctx.lineWidth = "5";
+				ctx.strokeStyle = "#"+((1<<24)*Math.random()|0).toString(16); // Randomize stroke colors for easy visualization
+
+				for (var i = 0; i < points.length; i++) { // Set path to point values
+					if (i == 0) {
+						ctx.moveTo(points[i].getX(),points[i].getY());
+					}
+					else {
+						ctx.lineTo(points[i].getX(),points[i].getY());
+					}
+				}
+
+				ctx.stroke();  // Draw it
+			}
+		}
+		else { // Draw shapes, all shape items one color
+			for (var key in current.getShapes()) {
+
+				var shape = current.getShapes()[key];
+
+				// Check for low-level... Don't draw just nodes or lines
+				if ((shape.getInterpretation() != "node") && (shape.getInterpretation() != "line")) {
+
+					var subelements = shape.getSubElements(); // Get the subelements inside the shape
+
+					var shapeColor = "#"+((1<<24)*Math.random()|0).toString(16); // Randomize shape colors for easy visualization
+					for (var j = 0; j < subelements.length; j++) {
+						// Check if subelement is another shape
+						if (subelements[j] instanceof srlib.core.data.container.Shape) {
+							subelements = subelements.concat(subelements[j].getSubElements()); // Simply append next level subelements for drawing
+						}
+						else {
+							// Check if subelement is substroke; we only want to draw processed strokes, so ignore points and strokes for now
+							if (subelements[j] instanceof srlib.core.data.container.Substroke) {
+								var points = subelements[j].getPoints();
+
+								ctx.beginPath();
+								ctx.lineWidth = "5";
+								ctx.strokeStyle = shapeColor;
+								for (var i = 0; i < points.length; i++) { // Set path to point values
+									if (i == 0) {
+										ctx.moveTo(points[i].getX(),points[i].getY());
+									}
+									else {
+										ctx.lineTo(points[i].getX(),points[i].getY());
+									}
+								}
+								ctx.stroke();
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	function getMetrics(original, current) {
+		// Evaluation method and details to be provided later
+	}
+
+
+	// Load data, populating global dictionary of sketch objects and selection list for viewing ease
+	function getSketches() {
+		// For this assignment, sketches will live on srl_db
+		// See http://srl-prod1.cs.tamu.edu:7750/doc/ for more info about using the API
+		while (startSketch < maxSketches) {
+			$.ajax({url: "http://srl-prod1.cs.tamu.edu:7750/getSketches?domain=MechanixCleaned&interpretation=force&skip=" + String(startSketch), success: function(result) {
+				for (var i = 0; i < result.length; i++) {
+					json = result[i]; // Get original sketch
+					var original = deserializer.fromSketchMLJSON(JSON.stringify(json)); // Put in srlib object for processing
+
+					var current = deserializer.fromSketchMLJSON(JSON.stringify(json)); // Make a deep copy for your editing purposes
+
+					current.setShapes({}); // Empty the shapes array so you can populate it with your recognition code; will compare against the original's shape set
+
+					// Create shapes here!
+					// 
+					// If you wish, use your segmentation code to make substrokes (some of you have built better ones than the Mechanix segmenter)
+					// Otherwise, you are allowed to directly use the provided substrokes this time.  Only the shapes array has been cleared.
+					// Note that depending on your recognition method, you may want to get strokes or substrokes
+					// This is just an example demonstrating that substrokes are available
+					// The example is the worst case of all substrokes in the sketch belonging to a single shape
+					// It serves only to show the functions you may need
+					
+					var newShape = new srlib.core.data.container.Shape();
+
+					for (var key in current.getSubstrokes()) {
+
+						/*
+						 *
+						 *
+						 * Do something to detect shapes
+						 * 
+						 *
+						 * 
+						 */
+						// Build new shape and add substrokes
+						// var newShape = new srlib.core.data.container.Shape();
+
+						// For this example, just assume that there is only one shape (there are more)
+						newShape.addSubElement(current.getSubstrokes()[key]);
+					}
+
+					newShape.setInterpretation("arrow"); // Whatever the shape represents
+					newShape.setConfidence(0.0); // Your recognizer's confidence, may come from how close to a threshold it is in your recognizer, or even probabilities in more sophisticated recognizers
+
+					// Add shapes to the sketch
+					current.addShape(newShape);
+
+					// NOTE: There are a number of functions in srlib, and many different ways to accomplish these tasks of creating and managing substrokes. A simple method is shown here, but ask and explore about other methods if desired.
+
+					getMetrics(original,current); // Call getMetrics for this sketch
+
+					// Save both sketches for visual comparison
+					sketches["old-" + original.getId()] = original;
+					$('#sketches').append($('<option/>', { 
+						value: "old-" + original.getId(), // Save sketch id as value for easy access from global dictionary
+						text : "old-" + original.getId() // Show id as value
+					}));
+
+					sketches["new-" + current.getId()] = current;
+					$('#sketches').append($('<option/>', { 
+						value: "new-" + current.getId(), // Save sketch id as value for easy access from global dictionary
+						text : "new-" + current.getId() // Show id as value
+					}));
+				}
+			}});
+		startSketch = startSketch + 50; // getSketches gets 50 sketches at a time always, break into requests with a skip/start counter
+		}
+	}
+	</script>
+</head>
+<!-- The body consists simply of a canvas for drawing and a selection list; this display is for the user's benefit, not required -->
+<body>
+
+<canvas id="sketch" width="1024" height="1024" style="position:fixed;top:0px;left:0px;border:1px solid #d3d3d3">
+Your browser does not support the HTML5 canvas tag.</canvas>
+
+<select id="sketches" size="2" style="position:fixed;top:0px;left:0px;width:20%;height:100%;" onchange="updateCanvas()"></select>
+
+<div style="position:fixed;top:0px;right:0px">
+Draw 
+<input id="drawSubstrokes" type="radio" value="substrokes" onclick="updateDrawSubstrokes()" checked="true"> Substrokes
+<input id="drawShapes" type="radio" value="shapes" onclick="updateDrawShapes()"> Shapes<br>
+</div>
+
+</body>
+</html>
